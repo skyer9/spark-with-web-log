@@ -77,18 +77,13 @@
 
    $ vi print_data.py
    ----------------------------------------------------------------------------
-   import re
-   from pyspark.sql import Row
-   from datetime import datetime
    from pyspark import SparkConf, SparkContext
-   from pyspark.sql import SparkSession
-   from pyspark import sql
    from pyspark.sql import SQLContext
 
    conf = SparkConf().setAppName("myFirstApp").setMaster("local")
    sc = SparkContext(conf=conf)
    sqlContext = SQLContext(sc)
    access_logs_df = sqlContext.read.parquet("/home/ec2-user/dev/www2-www-18041917.parquet")
-   print(access_logs_df.select('date').take(5))
+   print(access_logs_df.select('date', 'time').take(5))
    sc.stop()
    ----------------------------------------------------------------------------
