@@ -1,0 +1,136 @@
+
+스파크 sql 함수 사용하기
+
+
+
+1. select() 함수 사용하기
+
+   필요한 컬럼을 선택하여 로딩할 수 있다.
+
+   $ vi select.py
+   ----------------------------------------------------------------------------
+   from pyspark import SparkConf, SparkContext
+   from pyspark.sql import SQLContext
+
+   conf = SparkConf().setAppName("myFirstApp").setMaster("local")
+   sc = SparkContext(conf=conf)
+   sqlContext = SQLContext(sc)
+   access_logs_df = sqlContext.read.parquet("/home/ec2-user/dev/www2-www-18041917.parquet")
+
+   rows = access_logs_df.select('dateTime', 'cs_uri_stem', 'cs_uri_query')
+   print(rows.take(5))
+
+   sc.stop()
+   ----------------------------------------------------------------------------
+
+2. filter() 함수 사용하기
+
+   $ vi filter.py
+   ----------------------------------------------------------------------------
+   from pyspark.sql.functions import avg, udf, col
+   from pyspark import SparkConf, SparkContext
+   from pyspark.sql import SQLContext
+
+   conf = SparkConf().setAppName("myFirstApp").setMaster("local")
+   sc = SparkContext(conf=conf)
+   sqlContext = SQLContext(sc)
+   access_logs_df = sqlContext.read.parquet("/home/ec2-user/dev/www2-www-18041917.parquet")
+
+   rows = access_logs_df.select(
+       'dateTime', 'cs_uri_stem', 'cs_uri_query', 'cs_method', 'time_taken'
+   ).filter(
+       col('cs_method').isin('GET', 'POST')
+   ).filter(
+       'time_taken > 20'
+   ).filter(
+       'cs_uri_stem == "/shopping/category_prd.asp"'
+   )
+   print(rows.take(50))
+
+   sc.stop()
+   ----------------------------------------------------------------------------
+
+3. withColumn() 함수 사용하기
+
+   $ vi withColumn.py
+   ----------------------------------------------------------------------------
+   from pyspark.sql.functions import avg, udf, col, substring
+   from pyspark import SparkConf, SparkContext
+   from pyspark.sql import SQLContext
+
+   conf = SparkConf().setAppName("myFirstApp").setMaster("local")
+   sc = SparkContext(conf=conf)
+   sqlContext = SQLContext(sc)
+   access_logs_df = sqlContext.read.parquet("/home/ec2-user/dev/www2-www-18041917.parquet")
+
+   rows = access_logs_df.select(
+       'dateTime', 'cs_uri_stem', 'cs_uri_query', 'cs_method', 'time_taken', 'time'
+   ).filter(
+       'cs_uri_stem == "/shopping/category_prd.asp"'
+   ).withColumn('hour', substring('time', 0, 2))
+   print(rows.take(50))
+
+   sc.stop()
+   ----------------------------------------------------------------------------
+
+4. groupBy(), agg() 함수 사용하기
+
+   $ vi groupBy.py
+   ----------------------------------------------------------------------------
+   from pyspark.sql.functions import avg, udf, col, substring
+   from pyspark import SparkConf, SparkContext
+   from pyspark.sql import SQLContext
+
+   conf = SparkConf().setAppName("myFirstApp").setMaster("local")
+   sc = SparkContext(conf=conf)
+   sqlContext = SQLContext(sc)
+   access_logs_df = sqlContext.read.parquet("/home/ec2-user/dev/www2-www-18041917.parquet")
+
+   rows = access_logs_df.select(
+       'time_taken', 'time'
+   ).filter(
+       'cs_uri_stem == "/shopping/category_prd.asp"'
+   ).withColumn(
+       'hour', substring('time', 0, 2)
+   ).groupBy(
+       'hour'
+   ).agg(
+       avg(col('time_taken')).alias('average_time_taken')
+   ).drop('time_taken', 'time')
+   print(rows.take(5))
+
+   sc.stop()
+   ----------------------------------------------------------------------------
+
+5. orderBy() 함수 사용하기
+
+   $ vi orderBy.py
+   ----------------------------------------------------------------------------
+   from pyspark.sql.functions import avg, udf, col, substring
+   from pyspark import SparkConf, SparkContext
+   from pyspark.sql import SQLContext
+
+   conf = SparkConf().setAppName("myFirstApp").setMaster("local")
+   sc = SparkContext(conf=conf)
+   sqlContext = SQLContext(sc)
+   access_logs_df = sqlContext.read.parquet("/home/ec2-user/dev/www2-www-18041917.parquet")
+
+   rows = access_logs_df.select(
+       'time_taken', 'time'
+   ).filter(
+       'cs_uri_stem == "/shopping/category_prd.asp"'
+   ).withColumn(
+       'hour', substring('time', 0, 2)
+   ).groupBy(
+       'hour'
+   ).agg(
+       avg(col('time_taken')).alias('average_time_taken')
+   ).drop(
+       'time_taken', 'time'
+   ).orderBy(
+       'hour'
+   )
+   print(rows.take(5))
+
+   sc.stop()
+   ----------------------------------------------------------------------------
