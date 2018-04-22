@@ -1,0 +1,94 @@
+
+간단한 웹로그 분석하기
+
+
+
+1. Hello, World!
+
+   아래 명령으로 로그파일을 읽어들일 수 있다.
+   확장자가 gzip 으로 되어 있으면 스파크가 알아서 압축을 풀어서 읽어들인다.
+
+   ----------------------------------------------------------------------------
+   sc = SparkContext()
+   logs = sc.textFile("/home/ec2-user/dev/www2-www-18041917.gz")
+   print(logs.take(5))
+   sc.stop()
+   ----------------------------------------------------------------------------
+
+2. 로그파일을 parquet 포멧으로 변경하기
+
+   텍스트 상태의 로그파일을 매번 파싱하는 것은 매우 비용이 많이 드는 작업이다.
+   성능 향상을 위해 로그파일을 parquet 포멧으로 변경한다.
+
+   $ vi to_parquet.py
+   ----------------------------------------------------------------------------
+   import re
+   from pyspark.sql import Row
+   from datetime import datetime
+   from pyspark import SparkConf, SparkContext
+   from pyspark.sql import SparkSession
+   from pyspark import sql
+
+   # 2018-04-19 08:00:00 110.93.XXX.XXX GET /login/loginpage.asp vType=G 80 - 106.244.XXX.XXX Mozilla/5.0+(Windows+NT+6.1;+WOW64;+Trident/7.0;+rv:11.0)+like+Gecko http://www.test.co.kr/ 302 0 0 0
+   IIS_LOG_PATTERN = '^(\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+) (\S+)$'
+   DATETIME_PARSE_PATTERN = '%Y-%m-%d %H:%M:%S'
+
+
+   def parse_log(line):
+       match = re.search(IIS_LOG_PATTERN, line)
+
+       if match is None:
+           return None
+       date_obj = datetime.strptime(match.group(1) + ' ' + match.group(2), DATETIME_PARSE_PATTERN)
+       return Row(
+           dateTime            = date_obj.timestamp(),
+           date                = match.group(1),
+           time                = match.group(2),
+           s_ip                = match.group(3),
+           cs_method           = match.group(4),
+           cs_uri_stem         = match.group(5),
+           cs_uri_query        = match.group(6),
+           s_port              = match.group(7),
+           cs_username         = match.group(8),
+           c_ip                = match.group(9),
+           cs_User_Agent       = match.group(10),
+           cs_Referer          = match.group(11),
+           sc_status           = match.group(12),
+           sc_substatus        = match.group(13),
+           sc_win32_status     = match.group(14),
+           time_taken          = int(match.group(15))
+       )
+
+
+   conf = SparkConf().setAppName("myFirstApp").setMaster("local")
+   sc = SparkContext(conf=conf)
+   spark = SparkSession(sc)
+
+   access_logs_raw = sc.textFile("/home/ec2-user/dev/www2-www-18041917.gz")
+   access_logs_df = spark.createDataFrame(access_logs_raw.map(parse_log).filter(lambda x: x is not None))
+   # access_logs_df.write.partitionBy("date").parquet("/home/ec2-user/dev/www2-www-18041917.parquet", mode='overwrite')
+   access_logs_df.write.parquet("/home/ec2-user/dev/www2-www-18041917.parquet", mode='overwrite')
+
+   sc.stop()
+   spark.stop()
+   ----------------------------------------------------------------------------
+
+3. parquet 파일 열기
+
+   $ vi print_data.py
+   ----------------------------------------------------------------------------
+   import re
+   from pyspark.sql import Row
+   from datetime import datetime
+   from pyspark import SparkConf, SparkContext
+   from pyspark.sql import SparkSession
+   from pyspark import sql
+   from pyspark.sql import SQLContext
+
+   conf = SparkConf().setAppName("myFirstApp").setMaster("local")
+   sc = SparkContext(conf=conf)
+   sqlContext = SQLContext(sc)
+   access_logs_df = sqlContext.read.parquet("/home/ec2-user/dev/www2-www-18041917.parquet")
+   print(access_logs_df.select('date').take(5))
+   sc.stop()
+   ----------------------------------------------------------------------------
